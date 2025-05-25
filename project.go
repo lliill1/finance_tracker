@@ -38,6 +38,7 @@ func main() {
 	// Инициализация приложения
 	myApp := app.New()
 	myWindow := myApp.NewWindow("Finance Tracker")
+	myWindow.Resize(fyne.NewSize(800, 600)) // Установка начального размера главного окна
 
 	// Кнопки для главного окна
 	addButton := widget.NewButton("Добавить транзакцию", func() {
@@ -49,9 +50,12 @@ func main() {
 	reportButton := widget.NewButton("Сгенерировать отчет", func() {
 		reportWindow(myApp, db).Show()
 	})
+	fullScreenButton := widget.NewButton("Полноэкранный режим", func() {
+		myWindow.SetFullScreen(!myWindow.FullScreen()) // Переключение полноэкранного режима
+	})
 
-	// Макет главного окна
-	content := container.NewVBox(addButton, viewButton, reportButton)
+	// Адаптивный макет главного окна
+	content := container.NewAdaptiveGrid(2, addButton, viewButton, reportButton, fullScreenButton)
 	myWindow.SetContent(content)
 	myWindow.ShowAndRun()
 }
@@ -77,6 +81,7 @@ func createTable(db *sql.DB) {
 
 func addTransactionWindow(a fyne.App, db *sql.DB) fyne.Window {
 	window := a.NewWindow("Добавить транзакцию")
+	window.Resize(fyne.NewSize(600, 400)) // Установка начального размера окна добавления
 
 	typeSelect := widget.NewSelect([]string{"Доход", "Расход"}, nil)
 	categoryEntry := widget.NewEntry()
@@ -130,6 +135,7 @@ func addTransactionWindow(a fyne.App, db *sql.DB) fyne.Window {
 
 func viewTransactionsWindow(a fyne.App, db *sql.DB) fyne.Window {
 	window := a.NewWindow("Просмотр транзакций")
+	window.Resize(fyne.NewSize(1000, 600)) // Установка начального размера окна просмотра
 
 	rows, err := db.Query("SELECT id, date, type, category, amount, description FROM transactions")
 	if err != nil {
@@ -159,12 +165,15 @@ func viewTransactionsWindow(a fyne.App, db *sql.DB) fyne.Window {
 		},
 	)
 
-	window.SetContent(list)
+	// Добавление прокрутки для списка транзакций
+	scroll := container.NewScroll(list)
+	window.SetContent(scroll)
 	return window
 }
 
 func reportWindow(a fyne.App, db *sql.DB) fyne.Window {
 	window := a.NewWindow("Сгенерировать отчет")
+	window.Resize(fyne.NewSize(600, 400)) // Установка начального размера окна отчета
 
 	periodEntry := widget.NewEntry()
 	periodEntry.SetPlaceHolder("Период (YYYY-MM)")
@@ -202,8 +211,10 @@ func reportWindow(a fyne.App, db *sql.DB) fyne.Window {
 		balance := totalIncome - totalExpense
 		reportText := fmt.Sprintf("Отчет за %s:\nДоход: %.2f\nРасходы: %.2f\nБаланс: %.2f", period, totalIncome, totalExpense, balance)
 		reportWindow := a.NewWindow("Отчет за " + period)
+		reportWindow.Resize(fyne.NewSize(600, 400)) // Установка начального размера окна отчета
 		reportLabel := widget.NewLabel(reportText)
-		reportWindow.SetContent(reportLabel)
+		scroll := container.NewScroll(reportLabel) // Добавление прокрутки для отчета
+		reportWindow.SetContent(scroll)
 		reportWindow.Show()
 	})
 
