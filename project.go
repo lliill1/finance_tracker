@@ -3,12 +3,16 @@ package main
 import (
 	"database/sql"
 	"fmt"
+	"image/color"
+	"os"
 	"strconv"
 	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
+	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -37,26 +41,109 @@ func main() {
 
 	// Инициализация приложения
 	myApp := app.New()
+	myApp.Settings().SetTheme(theme.DarkTheme())
 	myWindow := myApp.NewWindow("Finance Tracker")
-	myWindow.Resize(fyne.NewSize(800, 600)) // Установка начального размера главного окна
+	myWindow.Resize(fyne.NewSize(800, 600))
+
+	// Заголовок
+	title := widget.NewLabel("Учет доходов и расходов")
+	title.TextStyle = fyne.TextStyle{Bold: true}
+	title.Alignment = fyne.TextAlignCenter
 
 	// Кнопки для главного окна
-	addButton := widget.NewButton("Добавить транзакцию", func() {
+	addButton := widget.NewButtonWithIcon("Добавить транзакцию", theme.ContentAddIcon(), func() {
 		addTransactionWindow(myApp, db).Show()
 	})
-	viewButton := widget.NewButton("Просмотреть транзакции", func() {
+	addButtonContainer := container.NewMax(addButton)
+	addButtonContainer.Resize(fyne.NewSize(200, 60))
+	addButtonAligned := container.NewHBox(addButtonContainer, widget.NewLabel("")) // Выравнивание влево
+
+	viewButton := widget.NewButtonWithIcon("Просмотреть транзакции", theme.ViewFullScreenIcon(), func() {
 		viewTransactionsWindow(myApp, db).Show()
 	})
-	reportButton := widget.NewButton("Сгенерировать отчет", func() {
+	viewButtonContainer := container.NewMax(viewButton)
+	viewButtonContainer.Resize(fyne.NewSize(200, 60))
+	viewButtonAligned := container.NewHBox(viewButtonContainer, widget.NewLabel(""))
+
+	reportButton := widget.NewButtonWithIcon("Сгенерировать отчет", theme.DocumentIcon(), func() {
 		reportWindow(myApp, db).Show()
 	})
-	fullScreenButton := widget.NewButton("Полноэкранный режим", func() {
-		myWindow.SetFullScreen(!myWindow.FullScreen()) // Переключение полноэкранного режима
-	})
+	reportButtonContainer := container.NewMax(reportButton)
+	reportButtonContainer.Resize(fyne.NewSize(200, 60))
+	reportButtonAligned := container.NewHBox(reportButtonContainer, widget.NewLabel(""))
 
-	// Адаптивный макет главного окна
-	content := container.NewAdaptiveGrid(2, addButton, viewButton, reportButton, fullScreenButton)
-	myWindow.SetContent(content)
+	fullScreenButton := widget.NewButtonWithIcon("Полноэкранный режим", theme.ViewFullScreenIcon(), func() {
+		myWindow.SetFullScreen(!myWindow.FullScreen())
+	})
+	fullScreenButtonContainer := container.NewMax(fullScreenButton)
+	fullScreenButtonContainer.Resize(fyne.NewSize(200, 60))
+	fullScreenButtonAligned := container.NewHBox(fullScreenButtonContainer, widget.NewLabel(""))
+
+	exitButton := widget.NewButtonWithIcon("Выход", theme.LogoutIcon(), func() {
+		myApp.Quit()
+	})
+	exitButtonContainer := container.NewMax(exitButton)
+	exitButtonContainer.Resize(fyne.NewSize(200, 60))
+	exitButtonAligned := container.NewHBox(exitButtonContainer, widget.NewLabel(""))
+
+	// Вертикальное расположение кнопок в один столбец
+	buttons := container.NewVBox(
+		addButtonAligned,
+		viewButtonAligned,
+		reportButtonAligned,
+		fullScreenButtonAligned,
+		exitButtonAligned,
+	)
+
+	// Загрузка изображения из той же директории
+	imageData, err := os.ReadFile("jpeg.jpg")
+	var imageContainer fyne.CanvasObject
+	if err != nil {
+		// Если изображение не удалось загрузить, используем заглушку
+		fyne.CurrentApp().SendNotification(&fyne.Notification{
+			Title:   "Ошибка",
+			Content: "Не удалось загрузить изображение: " + err.Error(),
+		})
+		placeholderImage := canvas.NewRectangle(&color.NRGBA{R: 150, G: 150, B: 150, A: 255})
+		placeholderImage.CornerRadius = 20
+		placeholderImage.SetMinSize(fyne.NewSize(300, 300))
+		imageLabel := widget.NewLabel("Не удалось загрузить изображение")
+		imageContainer = container.NewCenter(
+			container.NewVBox(
+				placeholderImage,
+				imageLabel,
+			),
+		)
+	} else {
+		// Создание ресурса для изображения
+		imageResource := fyne.NewStaticResource("jpeg.jpg", imageData)
+		img := canvas.NewImageFromResource(imageResource)
+		img.FillMode = canvas.ImageFillContain
+		img.SetMinSize(fyne.NewSize(300, 300))
+		// Примечание: canvas.Image не поддерживает CornerRadius
+		// Для закругленных углов нужно предварительно обработать изображение
+		imageContainer = container.NewCenter(img)
+	}
+
+	// Разделение окна: кнопки слева, изображение справа
+	split := container.NewHSplit(buttons, imageContainer)
+	split.SetOffset(0.5) // Делим окно пополам
+
+	// Основной контейнер с заголовком и разделением
+	content := container.NewVBox(
+		container.NewCenter(title),
+		split,
+	)
+
+	// Увеличиваем отступы по краям с помощью canvas.Rectangle в качестве спейсера
+	spacer := canvas.NewRectangle(&color.NRGBA{R: 0, G: 0, B: 0, A: 0}) // Прозрачный спейсер
+	spacer.SetMinSize(fyne.NewSize(0, 20))                              // 20 пикселей отступа
+	customPaddedContent := container.NewBorder(
+		spacer, spacer, spacer, spacer, // Отступы: сверху, снизу, слева, справа
+		content,
+	)
+
+	myWindow.SetContent(customPaddedContent)
 	myWindow.ShowAndRun()
 }
 
@@ -81,7 +168,7 @@ func createTable(db *sql.DB) {
 
 func addTransactionWindow(a fyne.App, db *sql.DB) fyne.Window {
 	window := a.NewWindow("Добавить транзакцию")
-	window.Resize(fyne.NewSize(600, 400)) // Установка начального размера окна добавления
+	window.Resize(fyne.NewSize(600, 400))
 
 	typeSelect := widget.NewSelect([]string{"Доход", "Расход"}, nil)
 	categoryEntry := widget.NewEntry()
@@ -135,7 +222,7 @@ func addTransactionWindow(a fyne.App, db *sql.DB) fyne.Window {
 
 func viewTransactionsWindow(a fyne.App, db *sql.DB) fyne.Window {
 	window := a.NewWindow("Просмотр транзакций")
-	window.Resize(fyne.NewSize(1000, 600)) // Установка начального размера окна просмотра
+	window.Resize(fyne.NewSize(1000, 600))
 
 	rows, err := db.Query("SELECT id, date, type, category, amount, description FROM transactions")
 	if err != nil {
@@ -165,7 +252,6 @@ func viewTransactionsWindow(a fyne.App, db *sql.DB) fyne.Window {
 		},
 	)
 
-	// Добавление прокрутки для списка транзакций
 	scroll := container.NewScroll(list)
 	window.SetContent(scroll)
 	return window
@@ -173,7 +259,7 @@ func viewTransactionsWindow(a fyne.App, db *sql.DB) fyne.Window {
 
 func reportWindow(a fyne.App, db *sql.DB) fyne.Window {
 	window := a.NewWindow("Сгенерировать отчет")
-	window.Resize(fyne.NewSize(600, 400)) // Установка начального размера окна отчета
+	window.Resize(fyne.NewSize(600, 400))
 
 	periodEntry := widget.NewEntry()
 	periodEntry.SetPlaceHolder("Период (YYYY-MM)")
@@ -211,9 +297,9 @@ func reportWindow(a fyne.App, db *sql.DB) fyne.Window {
 		balance := totalIncome - totalExpense
 		reportText := fmt.Sprintf("Отчет за %s:\nДоход: %.2f\nРасходы: %.2f\nБаланс: %.2f", period, totalIncome, totalExpense, balance)
 		reportWindow := a.NewWindow("Отчет за " + period)
-		reportWindow.Resize(fyne.NewSize(600, 400)) // Установка начального размера окна отчета
+		reportWindow.Resize(fyne.NewSize(600, 400))
 		reportLabel := widget.NewLabel(reportText)
-		scroll := container.NewScroll(reportLabel) // Добавление прокрутки для отчета
+		scroll := container.NewScroll(reportLabel)
 		reportWindow.SetContent(scroll)
 		reportWindow.Show()
 	})
