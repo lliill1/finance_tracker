@@ -77,13 +77,6 @@ func main() {
 	viewButtonContainer.Resize(fyne.NewSize(200, 60))
 	viewButtonAligned := container.NewHBox(viewButtonContainer, widget.NewLabel(""))
 
-	reportButton := widget.NewButtonWithIcon("Сгенерировать отчет", theme.DocumentIcon(), func() {
-		reportWindow(myApp, db).Show()
-	})
-	reportButtonContainer := container.NewMax(reportButton)
-	reportButtonContainer.Resize(fyne.NewSize(200, 60))
-	reportButtonAligned := container.NewHBox(reportButtonContainer, widget.NewLabel(""))
-
 	fullScreenButton := widget.NewButtonWithIcon("Полноэкранный режим", theme.ViewFullScreenIcon(), func() {
 		myWindow.SetFullScreen(!myWindow.FullScreen())
 	})
@@ -125,7 +118,6 @@ func main() {
 		container.NewHBox(widget.NewLabel(""), themeSwitch), // Добавляем переключатель темы
 		addButtonAligned,
 		viewButtonAligned,
-		reportButtonAligned,
 		statisticsButtonAligned,
 		budgetButtonAligned,
 		exportButtonAligned,
@@ -300,58 +292,6 @@ func viewTransactionsWindow(a fyne.App, db *sql.DB) fyne.Window {
 
 	scroll := container.NewScroll(list)
 	window.SetContent(scroll)
-	return window
-}
-
-func reportWindow(a fyne.App, db *sql.DB) fyne.Window {
-	window := a.NewWindow("Сгенерировать отчет")
-	window.Resize(fyne.NewSize(600, 400))
-
-	periodEntry := widget.NewEntry()
-	periodEntry.SetPlaceHolder("Период (YYYY-MM)")
-	generateButton := widget.NewButton("Сгенерировать", func() {
-		period := periodEntry.Text
-		query := `
-		SELECT type, SUM(amount) 
-		FROM transactions 
-		WHERE strftime('%Y-%m', date) = ? 
-		GROUP BY type`
-		rows, err := db.Query(query, period)
-		if err != nil {
-			fyne.CurrentApp().SendNotification(&fyne.Notification{
-				Title:   "Ошибка",
-				Content: "Не удалось сгенерировать отчет",
-			})
-			return
-		}
-		defer rows.Close()
-
-		var totalIncome, totalExpense float64
-		for rows.Next() {
-			var tType string
-			var amount float64
-			if err := rows.Scan(&tType, &amount); err != nil {
-				continue
-			}
-			if tType == "Доход" {
-				totalIncome = amount
-			} else if tType == "Расход" {
-				totalExpense = amount
-			}
-		}
-
-		balance := totalIncome - totalExpense
-		reportText := fmt.Sprintf("Отчет за %s:\nДоход: %.2f\nРасходы: %.2f\nБаланс: %.2f", period, totalIncome, totalExpense, balance)
-		reportWindow := a.NewWindow("Отчет за " + period)
-		reportWindow.Resize(fyne.NewSize(600, 400))
-		reportLabel := widget.NewLabel(reportText)
-		scroll := container.NewScroll(reportLabel)
-		reportWindow.SetContent(scroll)
-		reportWindow.Show()
-	})
-
-	content := container.NewVBox(periodEntry, generateButton)
-	window.SetContent(content)
 	return window
 }
 
